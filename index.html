@@ -593,26 +593,56 @@ input,textarea,select{font-family:inherit;font-size:16px;color:inherit;}
 }
 .tr-body p{font-size:12.5px;color:var(--ink-l);margin:0;line-height:1.8;}
 
-/* ==================== 祝福墙 ==================== */
-.wish-list{display:flex;flex-direction:column;gap:12px;}
-.wish{
-  background:#fff;
-  border-radius:14px;
-  padding:16px 18px;
-  border-left:3px solid var(--rose);
-  box-shadow:0 3px 16px rgba(180,140,120,.08);
-  animation:fadeUp .55s cubic-bezier(.22,1,.36,1);
+/* ==================== 祝福墙弹幕 ==================== */
+.danmaku-stage {
+  position: relative;
+  height: 420px;
+  overflow: hidden;
+  border-radius: 18px;
+  background:
+    radial-gradient(circle at 12% 22%, rgba(247,230,232,.75), transparent 55%),
+    radial-gradient(circle at 88% 78%, rgba(232,215,196,.55), transparent 55%),
+    linear-gradient(180deg, #fffdfa, #fbf5ef);
+  border: 1px solid rgba(200, 160, 92, .16);
+  box-shadow: 0 6px 26px rgba(180, 140, 120, .10);
+  -webkit-mask-image: linear-gradient(90deg, transparent 0, #000 7%, #000 93%, transparent 100%);
+  mask-image: linear-gradient(90deg, transparent 0, #000 7%, #000 93%, transparent 100%);
 }
-.wish-head{
-  display:flex;align-items:center;justify-content:space-between;
-  margin-bottom:7px;gap:10px;
+
+.danmaku-item {
+  position: absolute;
+  left: 0;
+  top: 0;
+  white-space: nowrap;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 8px 16px;
+  border-radius: 20px;
+  background: rgba(255, 255, 255, .96);
+  border: 1px solid rgba(200, 160, 92, .22);
+  box-shadow: 0 4px 14px rgba(180, 140, 120, .13);
+  font-size: 12.5px;
+  color: var(--ink);
+  will-change: transform;
+  pointer-events: none;
 }
-.wish-name{
-  font-family:var(--serif);font-size:14px;letter-spacing:.06em;
-  color:var(--gold-d);font-weight:600;
+.danmaku-item .dn-name {
+  font-family: var(--serif);
+  color: var(--gold-d);
+  font-weight: 600;
+  font-size: 12px;
+  letter-spacing: .04em;
 }
-.wish-time{font-size:10.5px;color:#bcaea8;letter-spacing:.06em;white-space:nowrap;}
-.wish-text{font-size:13.5px;color:var(--ink);margin:0;line-height:1.85;word-break:break-word;}
+.danmaku-item .dn-text {
+  color: var(--ink);
+  letter-spacing: .02em;
+  font-size: 12.5px;
+}
+
+@media (max-width: 480px) {
+  .danmaku-stage { height: 360px; }
+}
 
 /* ==================== 底部 & 分享 ==================== */
 .footer{
@@ -1043,7 +1073,7 @@ input,textarea,select{font-family:inherit;font-size:16px;color:inherit;}
 <section class="section" id="sec-wish">
   <h2 class="sec-title">祝福墙</h2>
   <p class="sec-sub">Blessings</p>
-  <div class="wish-list" id="wishList"></div>
+  <div class="danmaku-stage" id="wishList"></div>
 </section>
 
 <!-- ==================== 10. 底部 & 分享 ==================== -->
@@ -1743,68 +1773,165 @@ input,textarea,select{font-family:inherit;font-size:16px;color:inherit;}
   /* ============================================================
      9. 祝福墙
      ============================================================ */
+    /* ============================================================
+     9. 祝福墙（弹幕版）
+     ============================================================ */
   var DEFAULT_WISHES = [
-    { name: '妈妈', text: '看着你们从相遇到相守，愿往后余生，皆是欢喜。', time: 0, builtin: true },
-    { name: '老友 阿哲', text: '兄弟，终于等到这一天！祝你们百年好合，白头偕老。', time: 0, builtin: true },
-    { name: '表妹 小满', text: '哥哥嫂子新婚快乐～愿你们永远像现在这样甜甜蜜蜜！', time: 0, builtin: true },
-    { name: '同事 Lily', text: '祝两位新人永结同心，往后每一天都被爱包围。', time: 0, builtin: true }
+    { name: '妈妈', text: '看着你们从相遇到相守，愿往后余生，皆是欢喜。' },
+    { name: '老友 阿哲', text: '兄弟，终于等到这一天！祝你们百年好合，白头偕老。' },
+    { name: '表妹 小满', text: '哥哥嫂子新婚快乐～愿你们永远像现在这样甜甜蜜蜜！' },
+    { name: '同事 Lily', text: '祝两位新人永结同心，往后每一天都被爱包围。' }
   ];
 
-  function formatWishTime(ts) {
-    if (!ts) return '永远祝福';
-    var d = new Date(ts);
-    var pad = function (n) { return n < 10 ? '0' + n : n; };
-    return (d.getMonth() + 1) + '月' + d.getDate() + '日 ' + pad(d.getHours()) + ':' + pad(d.getMinutes());
-  }
+  var Danmaku = (function () {
+    var stage = null;
+    var pool = [];
+    var lanes = [];
+    var laneCount = 0;
+    var laneHeight = 54;
+    var poolIndex = 0;
+    var launchTimer = null;
+    var MAX_CONCURRENT = 22;
+    var SPEED = 62; // px/s，数值越小飘得越慢
 
-  function renderWish(wish) {
-    var list = $('#wishList');
-    var el = document.createElement('div');
-    el.className = 'wish';
+    function init(stageEl, wishes) {
+      stage = stageEl;
+      if (!stage) return;
+      stage.innerHTML = '';
+      pool = wishes.slice();
 
-    var head = document.createElement('div');
-    head.className = 'wish-head';
+      // 移动端同时显示的弹幕少一些，避免拥挤
+      MAX_CONCURRENT = window.innerWidth < 480 ? 14 : 22;
 
-    var nameEl = document.createElement('span');
-    nameEl.className = 'wish-name';
-    nameEl.textContent = wish.name || '匿名好友';
+      recalcLanes();
+      window.addEventListener('resize', function () {
+        MAX_CONCURRENT = window.innerWidth < 480 ? 14 : 22;
+        recalcLanes();
+      });
 
-    var timeEl = document.createElement('span');
-    timeEl.className = 'wish-time';
-    timeEl.textContent = wish.builtin ? '祝福' : formatWishTime(wish.time);
+      startLauncher();
+    }
 
-    head.appendChild(nameEl);
-    head.appendChild(timeEl);
+    function recalcLanes() {
+      if (!stage) return;
+      laneCount = Math.max(3, Math.floor(stage.clientHeight / laneHeight));
+      lanes = [];
+      for (var i = 0; i < laneCount; i++) {
+        lanes.push({ endTime: 0 });
+      }
+    }
 
-    var textEl = document.createElement('p');
-    textEl.className = 'wish-text';
-    textEl.textContent = wish.text;
+    function startLauncher() {
+      if (launchTimer) clearInterval(launchTimer);
+      launchTimer = setInterval(launch, 1600);
+      // 首屏先铺几条
+      for (var i = 0; i < 4; i++) {
+        setTimeout(launch, 300 + i * 550);
+      }
+    }
 
-    el.appendChild(head);
-    el.appendChild(textEl);
-    list.appendChild(el);
+    function launch() {
+      if (!stage || !pool.length) return;
+      if (stage.children.length >= MAX_CONCURRENT) return;
+      var wish = pool[poolIndex % pool.length];
+      poolIndex++;
+      create(wish);
+    }
+
+    function create(wish) {
+      var item = document.createElement('div');
+      item.className = 'danmaku-item';
+
+      var nameEl = document.createElement('span');
+      nameEl.className = 'dn-name';
+      nameEl.textContent = (wish.name || '匿名好友') + '：';
+
+      var textEl = document.createElement('span');
+      textEl.className = 'dn-text';
+      textEl.textContent = wish.text;
+
+      item.appendChild(nameEl);
+      item.appendChild(textEl);
+
+      // 先隐藏测量宽度
+      item.style.visibility = 'hidden';
+      item.style.transform = 'translateX(0)';
+      stage.appendChild(item);
+
+      var W = stage.clientWidth;
+      var itemW = item.offsetWidth;
+      var itemH = item.offsetHeight;
+
+      // 找最早空闲的轨道
+      var now = performance.now();
+      var lane = 0;
+      var minEnd = Infinity;
+      for (var i = 0; i < laneCount; i++) {
+        if (lanes[i].endTime < minEnd) {
+          minEnd = lanes[i].endTime;
+          lane = i;
+        }
+      }
+
+      var top = lane * laneHeight + Math.max(0, (laneHeight - itemH) / 2);
+      var duration = (W + itemW) / SPEED;
+      var startDelay = Math.max(0, Math.min(4500, lanes[lane].endTime - now));
+
+      item.style.top = top + 'px';
+      item.style.visibility = '';
+      item.style.transform = 'translateX(' + W + 'px)';
+
+      lanes[lane].endTime = now + startDelay + duration * 1000 + 300;
+
+      setTimeout(function () {
+        item.style.transition = 'transform ' + duration + 's linear';
+        item.style.transform = 'translateX(-' + itemW + 'px)';
+      }, startDelay);
+
+      setTimeout(function () {
+        if (item.parentNode) item.parentNode.removeChild(item);
+      }, startDelay + duration * 1000 + 400);
+    }
+
+    function add(wish) {
+      pool.push(wish);
+      if (stage && stage.children.length < MAX_CONCURRENT) {
+        create(wish);
+      }
+    }
+
+    return { init: init, add: add };
+  })();
+
+  function initWishes() {
+    var stage = $('#wishList');
+    if (!stage) return;
+
+    var stored = loadLS(LS.wishes, []);
+    var all = [];
+
+    // 用户提交的祝福优先展示
+    stored.forEach(function (w) {
+      all.push({ name: w.name, text: w.text });
+    });
+    // 内置默认祝福补充在后面循环
+    DEFAULT_WISHES.forEach(function (w) {
+      all.push({ name: w.name, text: w.text });
+    });
+
+    Danmaku.init(stage, all);
   }
 
   function addWish(name, text, time, persist) {
-    var wish = { name: name, text: text, time: time || Date.now(), builtin: false };
-    var stored = loadLS(LS.wishes, []);
-    stored.unshift(wish);
-    if (stored.length > 60) stored = stored.slice(0, 60);
-    if (persist !== false) saveLS(LS.wishes, stored);
-    renderWish(wish);
+    var wish = { name: name, text: text, time: time || Date.now() };
+    if (persist !== false) {
+      var stored = loadLS(LS.wishes, []);
+      stored.unshift(wish);
+      if (stored.length > 60) stored = stored.slice(0, 60);
+      saveLS(LS.wishes, stored);
+    }
+    Danmaku.add(wish);
     return wish;
-  }
-
-  function initWishes() {
-    var list = $('#wishList');
-    list.innerHTML = '';
-
-    var stored = loadLS(LS.wishes, []);
-    stored.forEach(function (w) {
-      w.builtin = false;
-      renderWish(w);
-    });
-    DEFAULT_WISHES.forEach(renderWish);
   }
 
   /* ============================================================
