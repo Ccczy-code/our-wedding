@@ -735,6 +735,38 @@ input,textarea,select{font-family:inherit;font-size:16px;color:inherit;}
   text-align:center;
 }
 .toast.show{opacity:1;transform:translate(-50%,0);}
+
+/* ==================== 问卷星嵌入 ==================== */
+.wjx-wrap {
+  position: relative;
+  border-radius: 18px;
+  overflow: hidden;
+  background: #fff;
+  border: 1px solid rgba(200, 160, 92, .16);
+  box-shadow: 0 6px 26px rgba(180, 140, 120, .10);
+  padding: 6px;
+}
+.wjx-wrap iframe {
+  display: block;
+  width: 100%;
+  height: 620px;
+  border: none;
+  border-radius: 14px;
+  background: #fff;
+}
+.wjx-tip {
+  text-align: center;
+  font-size: 12px;
+  color: var(--ink-l);
+  letter-spacing: .1em;
+  margin: 16px 0 0;
+}
+
+/* 移动端高度稍矮一点，避免留白太多 */
+@media (max-width: 480px) {
+  .wjx-wrap iframe { height: 680px; }
+}
+
 </style>
 </head>
 <body>
@@ -962,44 +994,17 @@ input,textarea,select{font-family:inherit;font-size:16px;color:inherit;}
   <h2 class="sec-title">出席回执</h2>
   <p class="sec-sub">Please Reply</p>
 
-  <form class="form-card" id="rsvpForm" novalidate>
-    <div class="field" data-field="name">
-      <label for="rsvpName">您的姓名 <span class="req">*</span></label>
-      <input type="text" id="rsvpName" name="name" placeholder="请输入您的姓名" autocomplete="name" maxlength="20">
-      <span class="err-msg"></span>
-    </div>
-
-    <div class="field" data-field="count">
-      <label>出席人数</label>
-      <div class="stepper">
-        <button type="button" id="countMinus" aria-label="减少">−</button>
-        <span class="num" id="countNum">1</span>
-        <button type="button" id="countPlus" aria-label="增加">＋</button>
-      </div>
-    </div>
-
-    <div class="field" data-field="phone">
-      <label for="rsvpPhone">联系电话 <span class="req">*</span></label>
-      <input type="tel" id="rsvpPhone" name="phone" placeholder="请输入手机号码" inputmode="numeric" autocomplete="tel" maxlength="11">
-      <span class="err-msg"></span>
-    </div>
-
-    <div class="field" data-field="message">
-      <label for="rsvpMsg">祝福语</label>
-      <textarea id="rsvpMsg" name="message" placeholder="写下您对我们的祝福吧～" maxlength="120"></textarea>
-      <span class="err-msg"></span>
-    </div>
-
-    <button type="submit" class="btn primary btn-block" id="rsvpSubmit">提交回执</button>
-  </form>
-
-  <div class="rsvp-success" id="rsvpSuccess">
-    <div class="ok-ico">
-      <svg viewBox="0 0 24 24"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/></svg>
-    </div>
-    <h3>回执已收到</h3>
-    <p>感谢您的确认，我们已为您留好席位<br>期待与您共度美好夜晚 ♥</p>
+  <div class="wjx-wrap">
+    <iframe
+      src="https://www.wjx.top/vm/YJAXhTn.aspx?width=760&source=iframe&s=t"
+      title="婚礼出席回执"
+      loading="lazy"
+      frameborder="0"
+      scrolling="no"
+    ></iframe>
   </div>
+
+  <p class="wjx-tip">请于 2026 年 9 月 30 日前填写，感谢您的回复 ♥</p>
 </section>
 
 <!-- ==================== 8. 交通指引 ==================== -->
@@ -2077,7 +2082,6 @@ input,textarea,select{font-family:inherit;font-size:16px;color:inherit;}
     initCountdown();
     initMap();
     initWishes();
-    initRSVP();
     initMusic();
     initScrollEffects();
     initShare();
